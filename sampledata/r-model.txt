@@ -1,7 +1,19 @@
-#Copy the expression below into "VStar Equation" box:
+# VStar model equation
 
-model <- function(t) 13.251365+
--0.149792 * cos(2*pi*0.016536*(t-2458355.7))-0.058797 * sin(2*pi*0.016536*(t-2458355.7))+
-0.042811 * cos(2*pi*0.033072*(t-2458355.7)) + 0.004897 * sin(2*pi*0.033072*(t-2458355.7))+
--0.007011 * cos(2*pi*0.049608*(t-2458355.7))-0.010889 * sin(2*pi*0.049608*(t-2458355.7))+
-0.002662 * cos(2*pi*0.066144*(t-2458355.7)) + 0.006325 * sin(2*pi*0.066144*(t-2458355.7))
+# The model
+model <- function(t) 13.255873+
+-0.092499 * cos(2*pi*0.016949*(t-2458367.7)) + 0.116113 * sin(2*pi*0.016949*(t-2458367.7))+
+-0.038487 * cos(2*pi*0.033899*(t-2458367.7))-0.028984 * sin(2*pi*0.033899*(t-2458367.7))
+
+#$
+# The previous line is a special comment, which separates expressions
+
+# The first harmonic (fundamental mode)
+model <- function(t) 13.255873+
+-0.092499 * cos(2*pi*0.016949*(t-2458367.7)) + 0.116113 * sin(2*pi*0.016949*(t-2458367.7))
+
+#$
+
+# The second harmonic
+model <- function(t) 13.255873+
+-0.038487 * cos(2*pi*0.033899*(t-2458367.7))-0.028984 * sin(2*pi*0.033899*(t-2458367.7))
