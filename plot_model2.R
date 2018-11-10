@@ -477,11 +477,11 @@ vstarplot = function ()
 	{
 	  wsFileName <- ""
 	  tryCatch({ 
-	    wsFileName <- gfile(type = "save", filter = list("VStarPlot files" = list(patterns = c("*.vsplotter")), "All files" = list(patterns = c("*"))) )
+	    wsFileName <- gfile(type = "save", filter = list("VStarPlot files" = list(patterns = c("*.vsmodelplot")), "All files" = list(patterns = c("*"))) )
 	  }, error = function(ex) { })
 	  if (!is.null(wsFileName) && !is.na(wsFileName) && wsFileName != "")
 	  {
-	    if (file_ext(wsFileName) == "") wsFileName = paste(wsFileName, ".vsplotter", sep="")
+	    if (file_ext(wsFileName) == "") wsFileName = paste(wsFileName, ".vsmodelplot", sep="")
 	    if (!file.exists(wsFileName) || (gconfirm(paste("File", wsFileName, "exists. Overwrite?", sep="\n"), parent=mainWin)))
 	    {
 	      tryCatch({
@@ -495,7 +495,7 @@ vstarplot = function ()
 	{
 	  wsFileName <- ""
 	  tryCatch({ 
-	    wsFileName <- gfile(filter = list("VStarPlot files" = list(patterns = c("*.vsplotter")), "All files" = list(patterns = c("*"))) )
+	    wsFileName <- gfile(filter = list("VStarPlot files" = list(patterns = c("*.vsmodelplot")), "All files" = list(patterns = c("*"))) )
 	  }, error = function(ex) { })
 	  if (!is.null(wsFileName) && !is.na(wsFileName) && wsFileName != "")
 	  {
