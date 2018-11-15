@@ -4,7 +4,7 @@
 #
 vstarplot = function ()
 {
-	print("Starting VStar plotter")
+	print("Starting VStar model plot")
 	library("tools")
 	library(gWidgets)
 	options("guiToolkit"="tcltk")
@@ -18,8 +18,18 @@ vstarplot = function ()
 
 	pngWidhPx         <- 900	# saved PNG image width, in pixels
 	pngHeightPx       <- 600	# saved PNG image height, in pixels
+
+	defaultAxisXtitle <- "JD" 
+	defaultAxisYtitle <- "Magnitude"
 ################################################################################
 
+	buttonLoadDataCaption <- "Load data"
+	buttonLoadModelCaption <- "Load model"
+	buttonSaveDataCaption <- "Save data"
+	buttonSaveModelCaption <- "Save model"
+	vstrEquationDefault <- "#copy an equation from VStar and paste here\n"; 
+	separatorNames <- c("Tab", "Comma", "Semicolon")
+	
 	mainWin <- NULL
 	plotOptionsWin <- NULL
 	
@@ -28,17 +38,21 @@ vstarplot = function ()
 	modelXY <- NULL		# one series
 	vstarModels <- NULL	# list of VStar equations
 
-	separatorName <- ""; 
-	vstarEquation <- "#copy an equation from VStar and paste here"; 
+	separatorName <- ""
+	vstarEquation <- ""
 	drawErrorBars <- TRUE
 	showModel <- TRUE
 	showCurves <- TRUE
 	
-	plotHeader <- ""
-	plotHeaderEdit <- NULL
-
-	separatorNames <- c("Tab", "Comma", "Semicolon")
 	
+	## Plot options controls
+	plotHeader <- ""
+	editPlotHeader <- NULL
+	axisXtitle <- ""
+	editAxisXtitle <- NULL
+	axisYtitle <- ""
+	editAxisYtitle <- NULL
+
 	# Open plotting device with white (nontransparent) background
 	openDevice = function()
 	{
@@ -77,11 +91,13 @@ vstarplot = function ()
 			if (!okFlag) return()
 
 			openDevice() # Open device with predefined parameters
-			plot(x=dataX, y=dataY, col="green", xlab="JD", ylab="Magnitude", ylim=plotYlim, main=plotHeader)
+			plot(x=dataX, y=dataY, col="green", xlab=axisXtitle, ylab=axisYtitle, ylim=plotYlim, main=plotHeader)
 			points(dataX, dataY, col = "green", bg = "green", pch = 21)
-			enabled(loadModelButton) <- TRUE
-			enabled(plotEquationButton) <- TRUE
+			enabled(buttonSaveData) <- TRUE
+			enabled(buttonLoadModel) <- TRUE
+			enabled(buttonPlotEquation) <- TRUE
 			enabled(buttonSavePlot) <- TRUE
+			enabled(buttonPlotOptions) <- TRUE
 
 			# Errorbars
 			if ((length(dataXY) > 2) && getDrawErrorBars())
@@ -122,6 +138,7 @@ vstarplot = function ()
 				{
 					points(dataX, dataY, col = "red", bg = "red", pch = 21)
 					enabled(checkBoxShowModel) <- TRUE
+					enabled(buttonSaveModel) <- TRUE
 				}
 				else
 				{
@@ -213,6 +230,8 @@ vstarplot = function ()
 	getVstarEquation = function()
 	{
 		vstarEquation <<- svalue(equationText)
+		if (is.null(vstarEquation) || is.na(vstarEquation)) vstarEquation <<- ""
+		if (vstarEquation != "" && vstarEquation[length(vstarEquation)] != "\n") vstarEquation <<- paste(vstarEquation, "\n", sep="")
 		return(vstarEquation)
 	}
 
@@ -228,23 +247,24 @@ vstarplot = function ()
 	{
 		dataFileName <- ""
 		tryCatch({ 
-			dataFileName <- gfile(filter = list("Text files" = list(patterns = c("*.txt", "*.csv")), "All files" = list(patterns = c("*"))) ) 
+			dataFileName <- gfile(filter = list("Text files" = list(patterns = c("*.txt", "*.csv")), "All files" = list(patterns = c("*")))) 
 		}, error = function(ex) { })
 		if (!is.null(dataFileName) && !is.na(dataFileName) && dataFileName != "")
 		{
 			## Read observation or model data.
 			tryCatch({
-				if(svalue(h$obj) == "Load data")
+				if(svalue(h$obj) == buttonLoadDataCaption)
 				{
 				  clearWorkspace(FALSE) # do not reset options (checkboxes etc)
 				  clearPlot()
 					dataXY <<- read.table(dataFileName, sep=getSeparator())
 				}
 				else
-				if(svalue(h$obj) == "Load model")
+				if(svalue(h$obj) == buttonLoadModelCaption)
 				{
 					modelXY <<- NULL
 					enabled(checkBoxShowModel) <- FALSE
+					enabled(buttonSaveModel) <- FALSE
 					setShowModel(FALSE)
 					modelXY <<- read.table(dataFileName, sep=getSeparator())
 					setShowModel(TRUE)
@@ -367,6 +387,39 @@ vstarplot = function ()
 	    drawPlot()
 	  }
 	}
+	
+	# Save data or model to external file
+	saveDataHandler = function(h,...)
+	{
+    dataFileName <- ""
+    tryCatch({
+	    dataFileName <- gfile(type = "save", filter = list("Text files" = list(patterns = c("*.txt")), "All files" = list(patterns = c("*")))) 
+    }, error = function(ex) { })
+    if (!is.null(dataFileName) && !is.na(dataFileName) && dataFileName != "")
+    {
+      if (file_ext(dataFileName) == "") dataFileName = paste(dataFileName, ".txt", sep="")
+      if (!file.exists(dataFileName) || (gconfirm(paste("File", dataFileName, "exists. Overwrite?", sep="\n"), parent=mainWin)))
+      {
+        tryCatch({
+          if(svalue(h$obj) == buttonSaveDataCaption)
+          {
+	          if (!is.null(dataXY))
+	            write.table(dataXY, file=dataFileName, sep=getSeparator(), col.names=FALSE, row.names=FALSE, na="")
+            else
+              gmessage(message="Nothing to save!", parent=mainWin)
+          }
+          else
+          if(svalue(h$obj) == buttonSaveModelCaption)
+          {
+            if (!is.null(modelXY))
+              write.table(modelXY, file=dataFileName, sep=getSeparator(), col.names=FALSE, row.names=FALSE, na="")
+            else
+              gmessage(message="Nothing to save!", parent=mainWin)
+          }
+        }, error = function(ex) { gmessage(message=paste("ERROR:", ex), parent=mainWin) } )
+      }
+    }
+	}
 
 	# Save plot to PNG file
 	savePlotHandler = function(h,...)
@@ -394,22 +447,27 @@ vstarplot = function ()
 	  dataXY <<- NULL
 	  modelXY <<- NULL
 	  vstarModels <<- NULL
-	  enabled(loadModelButton) <- FALSE
-	  enabled(plotEquationButton) <- FALSE
+	  enabled(buttonSaveData) <- FALSE	  
+	  enabled(buttonSaveModel) <- FALSE
+	  enabled(buttonLoadModel) <- FALSE
+	  enabled(buttonPlotEquation) <- FALSE
 	  enabled(checkBoxShowModel) <- FALSE
 	  enabled(checkBoxShowCurves) <- FALSE
 	  enabled(buttonSavePlot) <- FALSE
+	  enabled(buttonPlotOptions) <- FALSE
 	  if (!is.null(plotOptionsWin))
 	  {
 	    dispose(plotOptionsWin)
-	    plotHeader <<- ""
 	  }
+	  plotHeader <<- ""
+	  axisXtitle <<- defaultAxisXtitle
+	  axisYtitle <<- defaultAxisYtitle
 	  if (resetOptios)
 	  {
 	    setDrawErrorBars(TRUE)
 	    setShowModel(TRUE)
 	    setShowCurves(TRUE)
-	    setVstarEquation("")
+	    setVstarEquation(vstrEquationDefault)
 	    setSeparatorName("")
 	  }
 	}
@@ -420,7 +478,7 @@ vstarplot = function ()
 	  getVstarEquation()
 	  getSeparator()
 	  #getDrawErrorBars()
-	  save(file=wsFileName, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader"))
+	  save(file=wsFileName, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader", "axisXtitle", "axisYtitle"))
 	}
 	
 	# Load data, model, equations, and some options from an external file (R-format)
@@ -437,10 +495,14 @@ vstarplot = function ()
 	    if(exists("separatorName", envir=temp_env)) separatorName <<- temp_env$separatorName else separatorName <<- ""
 	    #if(exists("drawErrorBars", envir=temp_env)) drawErrorBars <<- temp_env$drawErrorBars else drawErrorBars <<- ""
 	    if(exists("plotHeader", envir=temp_env)) plotHeader <<- temp_env$plotHeader else plotHeader <<- ""
+	    if(exists("axisXtitle", envir=temp_env)) axisXtitle <<- temp_env$axisXtitle else axisXtitle <<- NULL
+	    if(exists("axisYtitle", envir=temp_env)) axisYtitle <<- temp_env$axisYtitle else axisYtitle <<- NULL
     },finally = {remove("temp_env")})
 	  if (is.null(vstarEquation)) vstarEquation <<- ""
 	  if (is.null(separatorName)) separatorName <<- ""
 	  if (is.null(plotHeader)) plotHeader <<- ""
+	  if (is.null(axisXtitle)) axisXtitle <<- defaultAxisXtitle
+	  if (is.null(axisYtitle)) axisYtitle <<- defaultAxisYtitle
 	  #if (is.null(drawErrorBars)) drawErrorBars <<- TRUE
 	}
 	
@@ -513,10 +575,20 @@ vstarplot = function ()
 	{
 	  #print("plotOptionsWin disposing")
 	  plotOptionsWin <<- NULL
-	  if (!is.null(plotHeaderEdit))
+	  if (!is.null(editPlotHeader))
 	  {
-	    plotHeader <<- svalue(plotHeaderEdit)
-	    plotHeaderEdit <<- NULL
+	    plotHeader <<- svalue(editPlotHeader)
+	    editPlotHeader <<- NULL
+	  }
+	  if (!is.null(editAxisXtitle))
+	  {
+	    axisXtitle <<- svalue(editAxisXtitle)
+	    editAxisXtitle <<- NULL
+	  }
+	  if (!is.null(editAxisYtitle))
+	  {
+	    axisYtitle <<- svalue(editAxisYtitle)
+	    editAxisYtitle <<- NULL
 	  }
 	}
 	
@@ -527,25 +599,44 @@ vstarplot = function ()
 	    plotOptionsWin <<- gwindow("Plot options", parent = mainWin, handler = plotOptionsDispose, height=50, width=100, visible=FALSE)
 	    layout <- glayout(container=plotOptionsWin)
 	    layout[1,1] <- "Title"
-	    plotHeaderEdit <<- gedit(plotHeader, container=layout)
-	    layout[1,2] <- plotHeaderEdit
-	    layout[2,2] <- gbutton("Update", container=layout, handler = function(h,...) { plotHeader <<-  svalue(plotHeaderEdit); drawPlot() })
+	    editPlotHeader <<- gedit(plotHeader, container=layout)
+	    layout[1,2] <- editPlotHeader
+	    
+	    layout[2,1] <- "X axis title"
+	    editAxisXtitle <<- gedit(axisXtitle, container=layout)
+	    layout[2,2] <- editAxisXtitle
+
+	    layout[3,1] <- "Y axis title"
+	    editAxisYtitle <<- gedit(axisYtitle, container=layout)
+	    layout[3,2] <- editAxisYtitle
+
+	    layout[4,2] <- gbutton("Update", container=layout, handler = function(h,...) 
+	      { 
+	        plotHeader <<-  svalue(editPlotHeader)
+	        axisXtitle <<-  svalue(editAxisXtitle)
+	        axisYtitle <<-  svalue(editAxisYtitle)
+	        drawPlot() 
+        })
       visible(plotOptionsWin) <<- TRUE
 	  }
+	}
+	
+	mainWinDispose = function(h,...)
+	{
+	  graphics.off()
+	  print("Type 'q()' to quit R.")
 	}
 
 	exitHandler = function(h,...) 
 	{
-	  graphics.off()
 	  dispose(mainWin)
-	  print("Type 'q()' to quit R.")	  	  
 	}
 
 ################################################################################
 # Begin of main program
 ################################################################################
 
-  mainWin <- gwindow(paste("VStar plotter", vspVersion), visible=FALSE)
+  mainWin <- gwindow(paste("VStar model plot", vspVersion), visible=FALSE, handler = mainWinDispose)
 
 	gp <- ggroup(horizontal=TRUE, container=mainWin, expand=TRUE, fill=TRUE)
 	
@@ -554,47 +645,45 @@ vstarplot = function ()
 	
 	tmp <- gframe("Data & Model", container=gp, expand=FALSE, fill=TRUE)
 	layout <- glayout(container=tmp, spacing=0)
-	layout[1,1] <- gbutton("Load data", container=layout, handler = loadDataHandler)
+	layout[1,1] <- gbutton(buttonLoadDataCaption, container=layout, handler = loadDataHandler)
 	checkBoxErrorBars <- gcheckbox("Show Uncertainties", checked=drawErrorBars, container=layout, handler = function(h,...) { drawPlot() } )
 	layout[1,2] <- checkBoxErrorBars
-	buttonSavePlot <- gbutton("Save plot", container=layout, handler = savePlotHandler)
-	layout[1,3] <- buttonSavePlot
-
-	loadModelButton <- gbutton("Load model", container=layout, handler = loadDataHandler)
-	layout[2,1] <- loadModelButton
+	buttonSaveData <- gbutton(buttonSaveDataCaption, container=layout, handler = saveDataHandler)
+	layout[1,3] <- buttonSaveData
+	
+	buttonLoadModel <- gbutton(buttonLoadModelCaption, container=layout, handler = loadDataHandler)
+	layout[2,1] <- buttonLoadModel
 	checkBoxShowModel <- gcheckbox("Show model", checked=showModel, container=layout, handler = function(h,...) { drawPlot() } )
 	layout[2,2] <- checkBoxShowModel
-
-
+	buttonSaveModel <- gbutton(buttonSaveModelCaption, container=layout, handler = saveDataHandler)
+	layout[2,3] <- buttonSaveModel
+	
 
 	tmp <- gframe("Column separator", container=layout)
 	radioColumnDelimiter <- gradio(separatorNames, container=tmp)
-	layout[3,1:2] <- tmp
+	layout[3:5,1:2] <- tmp
 	
+	buttonPlotOptions <- gbutton("Plot options", container=layout, handler = plotOptionsHandler)
+	layout[4,3] <- buttonPlotOptions
+	buttonSavePlot <- gbutton("Save plot", container=layout, handler = savePlotHandler)
+	layout[5,3] <- buttonSavePlot
 
-  layout[4,1] <- ""
-  buttonEquationLoad <- gbutton("Equation from file", container=layout, handler = loadEquationHandler)
-	layout[5,1] <- buttonEquationLoad
+	layout[6,1] <- ""
+	buttonEquationLoad <- gbutton("Equation from file", container=layout, handler = loadEquationHandler)
+	layout[7,1] <- buttonEquationLoad
 
-	plotEquationButton <- gbutton("Update curve(s)", container=layout, handler = plotEquationHandler)
-	layout[6,1] <- plotEquationButton
+	buttonPlotEquation <- gbutton("Update curve(s)", container=layout, handler = plotEquationHandler)
+	layout[8,1] <- buttonPlotEquation
 	checkBoxShowCurves <- gcheckbox("Show curve(s)", checked=showModel, container=layout, handler = function(h,...) { drawPlot() } )
-	layout[6,2] <- checkBoxShowCurves
+	layout[8,2] <- checkBoxShowCurves
 
-	layout[7,1] <- ""
-	layout[8,1] <- gbutton("Plot options", container=layout, handler = plotOptionsHandler)
 	layout[9,1] <- ""
-	layout[10,1] <- gbutton("Load workspace", container=layout, handler = loadWorkspaceHandler)
+	layout[10,1] <- ""
+
+	layout[11,1] <- gbutton("Load workspace", container=layout, handler = loadWorkspaceHandler)
 	layout[12,1] <- gbutton("Save workspace", container=layout, handler = saveWorkspaceHandler)
 	layout[12,2] <- gbutton("Clear workspace", container=layout, handler = function(h,...) { clearWorkspace(TRUE); clearPlot() })
-	
 	layout[12,3] <- gbutton("Exit", container=layout, handler = exitHandler)
-
-	enabled(loadModelButton) <- FALSE
-	enabled(plotEquationButton) <- FALSE
-	enabled(checkBoxShowModel) <- FALSE
-	enabled(checkBoxShowCurves) <- FALSE
-	enabled(buttonSavePlot) <- FALSE
 
 	visible(mainWin) <- TRUE
 	
