@@ -52,6 +52,15 @@ vstarplot = function ()
 	editAxisXtitle <- NULL
 	axisYtitle <- ""
 	editAxisYtitle <- NULL
+	
+	editAxisXmin <- NULL
+	axisXmin <- ""
+	editAxisXmax <- NULL
+	axisXmax <- ""
+	editAxisYmin <- NULL
+	axisYmin <- ""
+	editAxisYmax <- NULL
+	axisYmax <- ""
 
 	# Open plotting device with white (nontransparent) background
 	openDevice = function()
@@ -74,9 +83,11 @@ vstarplot = function ()
 	  # Plot only if lightcurve is defined.
 	  #print("dataXY")
 	  #print(dataXY)
+	  plotXlim <- NULL
+	  plotYlim <- NULL
 	  if (!is.null(dataXY))
 		{
-			okFlag = FALSE
+			okFlag <- FALSE
 			tryCatch({
 				dataX = unlist(dataXY[1], use.names=FALSE)
 				dataY = unlist(dataXY[2], use.names=FALSE)
@@ -84,14 +95,23 @@ vstarplot = function ()
 				{
 					stop("Data must be numeric")
 				}
-				dataXrange = range(dataX)
-				plotYlim = rev(range(dataY))
-				okFlag = TRUE
+				plotXlim <- range(dataX)
+				plotYlim <- rev(range(dataY))
+				okFlag <- TRUE
 			}, error = function(ex) { gmessage(message=paste("Cannot extract data.", ex), parent=mainWin) })
 			if (!okFlag) return()
 
 			openDevice() # Open device with predefined parameters
-			plot(x=dataX, y=dataY, col="green", xlab=axisXtitle, ylab=axisYtitle, ylim=plotYlim, main=plotHeader)
+			okFlag <- FALSE
+			tryCatch({
+			  if (is.numeric(axisXmin)) plotXlim[1] <- axisXmin
+			  if (is.numeric(axisXmax)) plotXlim[2] <- axisXmax
+			  if (is.numeric(axisYmin)) plotYlim[1] <- axisYmin
+			  if (is.numeric(axisYmax)) plotYlim[2] <- axisYmax			  
+			  plot(x=dataX, y=dataY, col="green", xlab=axisXtitle, ylab=axisYtitle, xlim=plotXlim, ylim=plotYlim, main=plotHeader)
+			  okFlag <- TRUE
+			}, error = function(ex) { gmessage(message=paste("Cannot plot data.", ex), parent=mainWin) })
+			if (!okFlag) return()
 			points(dataX, dataY, col = "green", bg = "green", pch = 21)
 			enabled(buttonSaveData) <- TRUE
 			enabled(buttonLoadModel) <- TRUE
@@ -150,8 +170,7 @@ vstarplot = function ()
 			# There are can be several curves, for example, main curve plus individual harmonics 
 			if (!is.null(vstarModels) && getShowCurves())
 			{
-				#jds = seq(dataXrange[1], dataXrange[2], 0.1)
-				jds = seq(dataXrange[1], dataXrange[2], (dataXrange[2] - dataXrange[1]) / 1000)
+				jds = seq(plotXlim[1], plotXlim[2], (plotXlim[2] - plotXlim[1]) / 1000)
 				for (i in 1:length(vstarModels))
 				{
 					model <- NULL
@@ -462,6 +481,10 @@ vstarplot = function ()
 	  plotHeader <<- ""
 	  axisXtitle <<- defaultAxisXtitle
 	  axisYtitle <<- defaultAxisYtitle
+	  axisXmin <<- ""
+	  axisXmax <<- ""
+	  axisYmin <<- ""
+	  axisYmax <<- ""
 	  if (resetOptios)
 	  {
 	    setDrawErrorBars(TRUE)
@@ -478,7 +501,7 @@ vstarplot = function ()
 	  getVstarEquation()
 	  getSeparator()
 	  #getDrawErrorBars()
-	  save(file=wsFileName, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader", "axisXtitle", "axisYtitle"))
+	  save(file=wsFileName, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader", "axisXtitle", "axisYtitle", "axisXmin", "axisXmax", "axisYmin", "axisYmax"))
 	}
 	
 	# Load data, model, equations, and some options from an external file (R-format)
@@ -497,12 +520,20 @@ vstarplot = function ()
 	    if(exists("plotHeader", envir=temp_env)) plotHeader <<- temp_env$plotHeader else plotHeader <<- ""
 	    if(exists("axisXtitle", envir=temp_env)) axisXtitle <<- temp_env$axisXtitle else axisXtitle <<- NULL
 	    if(exists("axisYtitle", envir=temp_env)) axisYtitle <<- temp_env$axisYtitle else axisYtitle <<- NULL
+	    if(exists("axisXmin", envir=temp_env)) axisXmin <<- temp_env$axisXmin else axisXmin <<- NULL
+	    if(exists("axisXmax", envir=temp_env)) axisXmax <<- temp_env$axisXmax else axisXmax <<- NULL
+	    if(exists("axisYmin", envir=temp_env)) axisYmin <<- temp_env$axisYmin else axisYmin <<- NULL
+	    if(exists("axisYmax", envir=temp_env)) axisYmax <<- temp_env$axisYmax else axisYmax <<- NULL	    
     },finally = {remove("temp_env")})
-	  if (is.null(vstarEquation)) vstarEquation <<- ""
-	  if (is.null(separatorName)) separatorName <<- ""
-	  if (is.null(plotHeader)) plotHeader <<- ""
-	  if (is.null(axisXtitle)) axisXtitle <<- defaultAxisXtitle
-	  if (is.null(axisYtitle)) axisYtitle <<- defaultAxisYtitle
+	  if (is.null(vstarEquation) || is.na(vstarEquation)) vstarEquation <<- ""
+	  if (is.null(separatorName) || is.na(separatorName)) separatorName <<- ""
+	  if (is.null(plotHeader) || is.na(plotHeader)) plotHeader <<- ""
+	  if (is.null(axisXtitle) || is.na(axisXtitle)) axisXtitle <<- defaultAxisXtitle
+	  if (is.null(axisYtitle) || is.na(axisYtitle)) axisYtitle <<- defaultAxisYtitle
+	  if (is.null(axisXmin) || is.na(axisXmin)) axisXmin <<- ""
+	  if (is.null(axisXmax) || is.na(axisXmax)) axisXmax <<- ""
+	  if (is.null(axisYmin) || is.na(axisYmin)) axisYmin <<- ""
+	  if (is.null(axisYmax) || is.na(axisYmax)) axisYmax <<- ""
 	  #if (is.null(drawErrorBars)) drawErrorBars <<- TRUE
 	}
 	
@@ -575,21 +606,13 @@ vstarplot = function ()
 	{
 	  #print("plotOptionsWin disposing")
 	  plotOptionsWin <<- NULL
-	  if (!is.null(editPlotHeader))
-	  {
-	    plotHeader <<- svalue(editPlotHeader)
-	    editPlotHeader <<- NULL
-	  }
-	  if (!is.null(editAxisXtitle))
-	  {
-	    axisXtitle <<- svalue(editAxisXtitle)
-	    editAxisXtitle <<- NULL
-	  }
-	  if (!is.null(editAxisYtitle))
-	  {
-	    axisYtitle <<- svalue(editAxisYtitle)
-	    editAxisYtitle <<- NULL
-	  }
+	  editPlotHeader <<- NULL
+	  editAxisXtitle <<- NULL
+	  editAxisYtitle <<- NULL
+	  editAxisXmin <<- NULL
+    editAxisXmax <<- NULL
+    editAxisYmin <<- NULL
+    editAxisYmax <<- NULL
 	}
 	
 	plotOptionsHandler = function(h,...)
@@ -600,21 +623,53 @@ vstarplot = function ()
 	    layout <- glayout(container=plotOptionsWin)
 	    layout[1,1] <- "Title"
 	    editPlotHeader <<- gedit(plotHeader, container=layout)
-	    layout[1,2] <- editPlotHeader
+	    layout[1,2:3, expand=TRUE] <- editPlotHeader
 	    
 	    layout[2,1] <- "X axis title"
 	    editAxisXtitle <<- gedit(axisXtitle, container=layout)
-	    layout[2,2] <- editAxisXtitle
+	    layout[2,2:3, expand=TRUE] <- editAxisXtitle
 
 	    layout[3,1] <- "Y axis title"
 	    editAxisYtitle <<- gedit(axisYtitle, container=layout)
-	    layout[3,2] <- editAxisYtitle
+	    layout[3,2:3, expand=TRUE] <- editAxisYtitle
 
-	    layout[4,2] <- gbutton("Update", container=layout, handler = function(h,...) 
+	    layout[4,1] <- "X min/max"
+	    editAxisXmin <<- gedit(axisXmin, container=layout)
+	    layout[4,2] <- editAxisXmin
+	    editAxisXmax <<- gedit(axisXmax, container=layout)
+	    layout[4,3] <- editAxisXmax
+	    
+	    layout[5,1] <- "Y min/max"
+	    editAxisYmin <<- gedit(axisYmin, container=layout)
+	    layout[5,2] <- editAxisYmin
+	    editAxisYmax <<- gedit(axisYmax, container=layout)
+	    layout[5,3] <- editAxisYmax
+	    
+	    layout[6,3, expand=TRUE] <- gbutton("Update", container=layout, handler = function(h,...) 
 	      { 
 	        plotHeader <<-  svalue(editPlotHeader)
 	        axisXtitle <<-  svalue(editAxisXtitle)
 	        axisYtitle <<-  svalue(editAxisYtitle)
+	        axisXmin <<- svalue(editAxisXmin)
+	        axisXmax <<- svalue(editAxisXmax)
+	        axisYmin <<- svalue(editAxisYmin)
+	        axisYmax <<- svalue(editAxisYmax)
+	        trimws(axisXmin)
+	        trimws(axisXmax)
+	        trimws(axisYmin)
+	        trimws(axisYmax)
+	        if (axisXmin != "") axisXmin <<- as.numeric(axisXmin)
+	        if (axisXmax != "") axisXmax <<- as.numeric(axisXmax)
+	        if (axisYmin != "") axisYmin <<- as.numeric(axisYmin)
+	        if (axisYmax != "") axisYmax <<- as.numeric(axisYmax)
+	        if (is.na(axisXmin) || is.na(axisXmax) || is.na(axisYmin) || is.na(axisYmax))
+	        {
+	          gmessage(message="At least one of axes boundaries is invalid. A default value(s) will be used", parent=mainWin)
+	          if (is.na(axisXmin)) axisXmin <<- ""
+	          if (is.na(axisXmax)) axisXmax <<- ""
+	          if (is.na(axisYmin)) axisYmin <<- ""
+	          if (is.na(axisYmax)) axisYmax <<- ""
+	        }
 	        drawPlot() 
         })
       visible(plotOptionsWin) <<- TRUE
