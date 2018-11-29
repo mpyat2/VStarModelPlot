@@ -1,28 +1,18 @@
 #!/bin/bash
 
 # Startup options
-ROPTIONS="--no-save --no-environ --no-site-file --no-restore --quiet"
+ROPTIONS="--vanilla --quiet"
+SCRIPTNAME=plot_model2.R
 
 echo "Starting VStar plotter...";
 cd "$( dirname "${BASH_SOURCE[0]}" )"
 echo "Current directory: $PWD"
 
 
-if [ ! -f plot_model2.R ]
+if [ ! -f $SCRIPTNAME ]
 then
-	echo "**** ERROR: Cannot find plot_model2.R"
+	echo "**** ERROR: Cannot find $SCRIPTNAME"
 	exit 1
 fi
 
-if [ ! -f .Rprofile ]
-then
-	echo ".First = function() { source(\"plot_model2.R\") }" > ".Rprofile"
-fi
-
-if [ ! -f .Rprofile ]
-then
-	echo "**** ERROR: Failed to create .Rprofile"
-	exit 1
-fi
-
-R $ROPTIONS
+Rscript $ROPTIONS -e "source('$SCRIPTNAME')"
