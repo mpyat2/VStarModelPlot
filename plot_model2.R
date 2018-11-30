@@ -143,7 +143,8 @@ vstarplot <- function()
     if (length(dev.list()) < 1) 
     {
       #if (debugOutput) cat("Calling dev.new()\n")
-      #dev.new(width = plotWidth, height = plotHeight, unit = "in", bg = "white")
+      #dev.new(width = plotWidth, height = plotHeight, bg = "white", noRStudioGD = TRUE)
+      # Calling dev.new under Windows in non-interactive mode does not initialise screen device (pdf initialized instead).
       if (debugOutput) cat("Calling X11()\n")
       X11(width = plotWidth, height = plotHeight, bg = "white") # X11() works under Windows also, it this case it is a synonym of windows()
       #tkraise(mainWin)
@@ -207,7 +208,7 @@ vstarplot <- function()
         dataE = unlist(dataXY[3], use.names = FALSE)
         if (class(dataE) != "numeric") stop("Uncertainties: Data must be numeric")
         okFlag = TRUE
-      }, error = function(ex) { showError(paste("Cannot extract uncertainties.", ex)) })
+      }, error = function(ex) { showError(paste("Cannot extract uncertainties.", ex, sep = "\n")) })
       if (okFlag) 
         arrows(dataX, dataY - dataE, dataX, dataY + dataE, length = 0.05, angle = 90, code = 3, col = "gray")
       else
@@ -242,13 +243,14 @@ vstarplot <- function()
       for (i in 1:length(vstarModels))
       {
         model <- NULL
-        okFlag = FALSE
+        modelColor <- "blue"
+        okFlag <- FALSE
         tryCatch({
           eval(parse(text = paste(vstarModels[i]))) # must contain function "model"
-          okFlag = TRUE
-        }, error = function(ex) {showError(paste("Error while plotting model curve."), ex, sep = "\n") })
+          lines(jds, model(jds), col = modelColor) # can generate exception if modelColor defined incorrectly, for example
+          okFlag <- TRUE
+        }, error = function(ex) {showError(paste("Error while plotting model curve.", ex, sep = "\n")) })
         if (!okFlag) return()
-        lines(jds, model(jds), col="blue")
       }
     }
   }
@@ -394,7 +396,7 @@ vstarplot <- function()
         v <- paste0(readLines(con=textFileName, warn=FALSE), collapse ="\n")
         setVstarEquation(v)
         okFlag <- TRUE
-      }, error = function(ex) { showError(paste("Error reading file.", ex)) })
+      }, error = function(ex) { showError(paste("Error reading file.", ex, sep = "\n")) })
     }
     if (!okFlag) return()
     parseVstarEquationAndDraw()
@@ -828,7 +830,6 @@ vstarplot <- function()
   
   if (debugOutput) print(search())
   
-  #X11(width = plotWidth, height = plotHeight, bg = "white") #Works under Windows also: "X11()" is a synonym of "windows()" under Windows.
   #tkraise(mainWin)
   tkfocus(mainWin)
   if (!interactive()) 
