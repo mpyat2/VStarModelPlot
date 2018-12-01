@@ -71,6 +71,7 @@ vstarplot <- function()
   tcl_axisYmax <- tclVar("")
   plotOptionsErrorLabel <- NULL
 
+  vstarplot_envir <- environment()
 
   showError <- function(msg)
   {
@@ -203,11 +204,11 @@ vstarplot <- function()
     # Errorbars
     if ((length(dataXY) > 2) && (tclvalue(drawErrorBars) != "0"))
     {
-      okFlag = FALSE
+      okFlag <- FALSE
       tryCatch({ 
         dataE = unlist(dataXY[3], use.names = FALSE)
         if (class(dataE) != "numeric") stop("Uncertainties: Data must be numeric")
-        okFlag = TRUE
+        okFlag <- TRUE
       }, error = function(ex) { showError(paste("Cannot extract uncertainties.", ex, sep = "\n")) })
       if (okFlag) 
         arrows(dataX, dataY - dataE, dataX, dataY + dataE, length = 0.05, angle = 90, code = 3, col = "gray")
@@ -218,12 +219,12 @@ vstarplot <- function()
     # Model (points)
     if (!is.null(modelXY) && (tclvalue(showModel) != "0"))
     {
-      okFlag = FALSE
+      okFlag <- FALSE
       tryCatch({
         dataX = unlist(modelXY[1], use.names = FALSE)
         dataY = unlist(modelXY[2], use.names = FALSE)
         if ((class(dataX) != "numeric") || (class(dataY) != "numeric")) stop("X, Y: Data must be numeric")
-        okFlag = TRUE
+        okFlag <- TRUE
       }, error = function(ex) { showError(paste("Cannot extract model.", ex, sep = "\n")) })
       if (okFlag) 
       {
@@ -242,14 +243,24 @@ vstarplot <- function()
       jds = seq(plotXlim[1], plotXlim[2], (plotXlim[2] - plotXlim[1]) / 1000)
       for (i in 1:length(vstarModels))
       {
-        model <- NULL
-        modelColor <- "blue"
+        # Trying to isolate an enviromment, in which user-defined models are calculated, from working environment.
+        # Not an ideal solution, however it is better than non-isolated at all.
+        # A "parallel" environment is a child of vstarplot() parent (usually global environment)
         okFlag <- FALSE
+        temp_env <- new.env(parent = parent.env(vstarplot_envir))
         tryCatch({
-          eval(parse(text = paste(vstarModels[i]))) # must contain function "model"
-          lines(jds, model(jds), col = modelColor) # can generate exception if modelColor defined incorrectly, for example
+          temp_env$jds <- jds 
+          temp_env$vstarModel <- vstarModels[i]
+          with(temp_env, 
+          {
+            model <- NULL
+            modelColor <- "blue"
+            eval(parse(text = paste(vstarModel))) # must contain function "model"
+            lines(jds, model(jds), col = modelColor) # can generate exception if modelColor defined incorrectly, for example
+          })
           okFlag <- TRUE
-        }, error = function(ex) {showError(paste("Error while plotting model curve.", ex, sep = "\n")) })
+        }, error = function(ex) {showError(paste("Error while plotting model curve.", ex, sep = "\n")) },
+           finally = { remove("temp_env") })
         if (!okFlag) return()
       }
     }
@@ -324,12 +335,19 @@ vstarplot <- function()
   addEquation <- function(s)
   {
     okFlag <- FALSE
-    model <- NULL
-    tryCatch({ 
-      eval(parse(text = s))
-      if (mode(model) != "function") stop(message = "There must be 'model' function defined in the expression: Chunk of code is ignored.")
+    # Trying to isolate an enviromment, in which user-defined models are calculated, from working environment.
+    temp_env <- new.env(parent = parent.env(vstarplot_envir))
+    tryCatch({
+      temp_env$vstarModel <- s
+      with(temp_env, 
+      {
+        model <- NULL
+        eval(parse(text = vstarModel))
+        if (mode(model) != "function") stop(message = "There must be 'model' function defined in the expression: Chunk of code is ignored.")
+      }) 
       okFlag <- TRUE
-    }, error = function(ex) { showError(paste("Parse error: Chunk of code is ignored.\nError message:\n", ex, sep = "\n")) })
+    }, error = function(ex) { showError(paste("Parse error: Chunk of code is ignored.\nError message:\n", ex, sep = "\n")) },
+       finally = { remove("temp_env") })
     if (!okFlag) return()
     
     # simplified: do not check for identical models. length(NULL) == 0 !!
