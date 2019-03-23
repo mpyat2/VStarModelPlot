@@ -19,11 +19,10 @@ library("tcltk")
 
 vstarplot <- function()
 {
-  cat("Starting VStar model plot\n")
+  vspVersion        <- "Version 0.06"
+  cat("Starting VStar model plot "); cat(vspVersion); cat("\n")
 
 ## Configuration options ###############################################################################
-  vspVersion        <- "Version 0.05"
-
   plotWidth         <- 9     # plot pane, inched
   plotHeight        <- 6     # plot pane, inches
   
@@ -33,13 +32,16 @@ vstarplot <- function()
   
   defaultAxisXtitle <- "JD" 
   defaultAxisYtitle <- "Magnitude"
-  
+
+  dataVstarColorDefault <- "green"
+  modelVstarColorDefault <- "red"
+
   debugOutput       <- FALSE
 ########################################################################################################
   
   vstrEquationDefault <- "#copy an equation from VStar and paste here\n";
   separatorNames <- c("Tab", "Comma", "Semicolon")
-
+  
   mainWin <- NULL
   plotOptionsWin <- NULL
   
@@ -47,7 +49,7 @@ vstarplot <- function()
   dataXY <- NULL      # one series
   modelXY <- NULL     # one series
   vstarModels <- NULL # list of VStar equations
-  
+
   #options
   separatorName <- tclVar(separatorNames[1])
   drawErrorBars <- tclVar(FALSE)
@@ -69,6 +71,15 @@ vstarplot <- function()
   tcl_axisYmin <- tclVar("")
   axisYmax <- ""
   tcl_axisYmax <- tclVar("")
+  dataVstarColor <- NA
+  dlg_dataVstarColor <- NA
+  modelVstarColor <- NA
+  dlg_modelVstarColor <- NA
+  dataVstarMarkerFill <- TRUE
+  tcl_dataVstarMarkerFill <- tclVar(dataVstarMarkerFill)
+  modelVstarMarkerFill <- TRUE
+  tcl_modelVstarMarkerFill <- tclVar(modelVstarMarkerFill)
+ 
   plotOptionsErrorLabel <- NULL
 
   vstarplot_envir <- environment()
@@ -187,8 +198,9 @@ vstarplot <- function()
       if (is.numeric(axisXmin)) plotXlim[1] <- axisXmin
       if (is.numeric(axisXmax)) plotXlim[2] <- axisXmax
       if (is.numeric(axisYmin)) plotYlim[1] <- axisYmin
-      if (is.numeric(axisYmax)) plotYlim[2] <- axisYmax			  
-      plot(x = dataX, y = dataY, type = "p", col = "darkgreen", bg = "green", pch = 21, xlab = axisXtitle, ylab = axisYtitle, xlim = plotXlim, ylim = plotYlim, main = plotHeader)
+      if (is.numeric(axisYmax)) plotYlim[2] <- axisYmax
+      if (dataVstarMarkerFill) plotBg <- dataVstarColor else plotBg <- NA
+      plot(x = dataX, y = dataY, type = "p", col = dataVstarColor, bg = plotBg, pch = 21, xlab = axisXtitle, ylab = axisYtitle, xlim = plotXlim, ylim = plotYlim, main = plotHeader)
       okFlag <- TRUE
     }, error = function(ex) { showError(paste("Cannot plot data.", ex, sep = "\n")) })
     if (!okFlag) return()
@@ -228,7 +240,8 @@ vstarplot <- function()
       }, error = function(ex) { showError(paste("Cannot extract model.", ex, sep = "\n")) })
       if (okFlag) 
       {
-        points(dataX, dataY, col = "darkred", bg = "red", pch = 21)
+        if (modelVstarMarkerFill) plotBg <- modelVstarColor else plotBg <- NA
+        points(dataX, dataY, col = modelVstarColor, bg = plotBg, pch = 21)
         tkconfigure(checkBoxShowModel, state = "normal")
         tkconfigure(buttonSaveModel, state = "normal")
       }
@@ -281,6 +294,39 @@ vstarplot <- function()
     if (length(v) == 1 && mode(v) == "logical" && !is.na(v)) tclvalue(drawErrorBars) <- v
   }
   
+  color2hex <- function(v)
+  {
+    color_rgb <- col2rgb(v)
+    result <- rgb(color_rgb[1], color_rgb[2], color_rgb[3], maxColorValue = 255)
+    return(result)
+  }
+  
+  is.valid.color <- function(v)
+  {
+    result <- try(col2rgb(v), silent=TRUE)
+    return(!("try-error" %in% class(result)))
+  }
+  
+  safeSetDataVstarColor <- function(v)
+  {
+    if (length(v) == 1 && is.valid.color(v)) dataVstarColor <<- v
+  }
+  
+  safeSetModelVstarColor <- function(v)
+  {
+    if (length(v) == 1 && is.valid.color(v)) modelVstarColor <<- v
+  }  
+  
+  safeSetDataVstarMarkerFill <- function(v)
+  {
+    if (length(v) == 1 && mode(v) == "logical" && !is.na(v)) dataVstarMarkerFill <<- v
+  }
+  
+  safeSetModelVstarMarkerFill <- function(v)
+  {
+    if (length(v) == 1 && mode(v) == "logical" && !is.na(v)) modelVstarMarkerFill <<- v
+  }  
+  
   safeSetSeparator <- function(sName)
   {
     if(length(sName) == 1 && sName %in% separatorNames) tclvalue(separatorName) <- sName
@@ -288,7 +334,11 @@ vstarplot <- function()
 
   getVstarEquation <- function()
   {
-    return(tclvalue(tkget(textVStarEquation, "1.0", "end")))
+    result <- tclvalue(tkget(textVStarEquation, "1.0", "end"))
+    if (is.null(result) || is.na(result)) result <- ""
+    # tkget could return extra \n. Trim all trailing whilespaces (including \n) and add one \n.
+    if (nchar(result)) result <- paste(trimws(result, which = "right"), "\n", sep = "")
+    return(result)
   }
   
   setVstarEquation <- function(v)
@@ -370,19 +420,23 @@ vstarplot <- function()
       line <- trimws(line)
       if (substr(line, 1, 2) == "#$") 
       {
-        if (codechunk != "") addEquation(codechunk)
+        codechunk <- trimws(codechunk)
+        if (nchar(codechunk)) addEquation(codechunk)
         codechunk <- ""
       }
       else
       {
-        if (line != "")
+        if (nchar(line))
         {
-          if (codechunk == "") codechunk = line else codechunk = paste(codechunk, line, sep="\n")
+          if (substr(line, 1, 1) != "#") # ignore comments
+          {
+            if (codechunk == "") codechunk = line else codechunk = paste(codechunk, line, sep="\n")
+          }
         }
       }
     }
     codechunk <- trimws(codechunk)
-    if (codechunk != "") addEquation(codechunk)
+    if (nchar(codechunk)) addEquation(codechunk)
     codechunk <- ""
   }
   
@@ -412,6 +466,7 @@ vstarplot <- function()
     {
       tryCatch({
         v <- paste0(readLines(con=textFileName, warn=FALSE), collapse ="\n")
+        v <- paste(v, "\n", sep = "")
         setVstarEquation(v)
         okFlag <- TRUE
       }, error = function(ex) { showError(paste("Error reading file.", ex, sep = "\n")) })
@@ -487,6 +542,8 @@ vstarplot <- function()
     axisXmax <<- ""
     axisYmin <<- ""
     axisYmax <<- ""
+    dataVstarColor <<- dataVstarColorDefault
+    modelVstarColor <<- modelVstarColorDefault
     if (resetOptios)
     {
       tclvalue(drawErrorBars) <- FALSE
@@ -513,9 +570,12 @@ vstarplot <- function()
       temp_env$axisXmax <- axisXmax
       temp_env$axisYmin <- axisYmin
       temp_env$axisYmax <- axisYmax
-      temp_drawErrorBars <- tclvalue(drawErrorBars)
-      temp_env$drawErrorBars <- temp_drawErrorBars != "0"
-      save(file=wsFileName, envir = temp_env, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader", "axisXtitle", "axisYtitle", "axisXmin", "axisXmax", "axisYmin", "axisYmax", "drawErrorBars"))
+      temp_env$drawErrorBars <- tclvalue(drawErrorBars) != "0"
+      temp_env$dataVstarColor <- dataVstarColor
+      temp_env$modelVstarColor <- modelVstarColor
+      temp_env$dataVstarMarkerFill <- dataVstarMarkerFill
+      temp_env$modelVstarMarkerFill <- modelVstarMarkerFill
+      save(file=wsFileName, envir = temp_env, list = c("dataXY", "modelXY", "vstarEquation", "separatorName", "plotHeader", "axisXtitle", "axisYtitle", "axisXmin", "axisXmax", "axisYmin", "axisYmax", "drawErrorBars", "dataVstarColor", "modelVstarColor", "dataVstarMarkerFill", "modelVstarMarkerFill"))
     },finally = {remove("temp_env")})
   }
   
@@ -537,6 +597,10 @@ vstarplot <- function()
       if(exists("axisYmin", envir=temp_env)) axisYmin <<- temp_env$axisYmin else axisYmin <<- NULL
       if(exists("axisYmax", envir=temp_env)) axisYmax <<- temp_env$axisYmax else axisYmax <<- NULL
       if(exists("drawErrorBars", envir=temp_env)) safeSetDrawErrorBars(temp_env$drawErrorBars)
+      if(exists("dataVstarColor", envir=temp_env)) safeSetDataVstarColor(temp_env$dataVstarColor)
+      if(exists("modelVstarColor", envir=temp_env)) safeSetModelVstarColor(temp_env$modelVstarColor)
+      if(exists("dataVstarMarkerFill", envir=temp_env)) safeSetDataVstarMarkerFill(temp_env$dataVstarMarkerFill)
+      if(exists("modelVstarMarkerFill", envir=temp_env)) safeSetModelVstarMarkerFill(temp_env$modelVstarMarkerFill)
     },finally = {remove("temp_env")})
     if (is.null(plotHeader) || is.na(plotHeader)) plotHeader <<- ""
     if (is.null(axisXtitle) || is.na(axisXtitle)) axisXtitle <<- defaultAxisXtitle
@@ -628,8 +692,47 @@ vstarplot <- function()
       if (is.na(axisYmin)) axisYmin <<- ""
       if (is.na(axisYmax)) axisYmax <<- ""
     }
+    #
+    dataVstarColor <<- dlg_dataVstarColor
+    modelVstarColor <<- dlg_modelVstarColor
+    #
+    dataVstarMarkerFill <<- tclvalue(tcl_dataVstarMarkerFill) != "0"
+    modelVstarMarkerFill <<- tclvalue(tcl_modelVstarMarkerFill) != "0"
+    #
     drawPlot()
   }
+
+  plotOptionsDataColor <- function()
+  {
+    color <- color2hex(dlg_dataVstarColor) # convert color into #xxxxxx because tk_chooseColor interprets colors differently
+    color <- tclvalue(.Tcl(paste("tk_chooseColor", .Tcl.args(initialcolor = color, title = "Choose a color", parent = plotOptionsWin))))
+    if (nchar(color) > 0)
+    {
+      dlg_dataVstarColor <<- color
+      plotOptionsUpdateHandler()
+    }
+  }
+  
+  plotOptionsModelColor <- function()
+  {
+    color <- color2hex(dlg_modelVstarColor) # convert color into #xxxxxx because tk_chooseColor interprets colors differently
+    color <- tclvalue(.Tcl(paste("tk_chooseColor", .Tcl.args(initialcolor = color, title = "Choose a color", parent = plotOptionsWin))))
+    if (nchar(color) > 0)
+    {
+      dlg_modelVstarColor <<- color
+      plotOptionsUpdateHandler()
+    }
+  }
+  
+  plotOptionsDataMarkerFill <- function()
+  {
+    plotOptionsUpdateHandler()
+  }
+  
+  plotOptionsModelMarkerFill <- function()
+  {
+    plotOptionsUpdateHandler()
+  }  
   
   plotOptionsHandler <- function()
   {
@@ -644,6 +747,8 @@ vstarplot <- function()
       as.character(axisXmax) -> tclvalue(tcl_axisXmax)
       as.character(axisYmin) -> tclvalue(tcl_axisYmin)
       as.character(axisYmax) -> tclvalue(tcl_axisYmax)
+      dataVstarColor ->> dlg_dataVstarColor
+      modelVstarColor ->> dlg_modelVstarColor
       #
       plotOptionsWin <<- tktoplevel()
       tkwm.protocol(plotOptionsWin, "WM_DELETE_WINDOW", plotOptionsDeleteHandler)
@@ -685,12 +790,27 @@ vstarplot <- function()
 
       plotOptionsErrorLabel <<- ttklabel(frame, text = "", foreground = "red")
       tkgrid(plotOptionsErrorLabel, row = 5, column = 0, columnspan = 3, sticky = "news")                
-        
+      
+      frame2 <- ttkframe(frame, padding = c(0, 0, 0, 12))
+      tkgrid(frame2, row = 6, column = 2, rowspan = 2, columnspan = 2, sticky = "e")
+      
+      checkBox <- ttkcheckbutton(frame2, text = "Fill", variable = tcl_dataVstarMarkerFill, command = plotOptionsDataMarkerFill)
+      tkgrid(checkBox, row = 0, column = 0, sticky = "e")
+      
+      button <- ttkbutton(frame2, text = "Data Color", command = plotOptionsDataColor)
+      tkgrid(button, row = 0, column = 1, sticky = "e")
+      
+      checkBox <- ttkcheckbutton(frame2, text = "Fill", variable = tcl_modelVstarMarkerFill, command = plotOptionsModelMarkerFill)
+      tkgrid(checkBox, row = 1, column = 0, sticky = "e")
+
+      button <- ttkbutton(frame2, text = "Model Color", command = plotOptionsModelColor)
+      tkgrid(button, row = 1, column = 1, sticky = "e")
+  
       button <- ttkbutton(frame, text = "Update", command = plotOptionsUpdateHandler)
-      tkgrid(button, row = 6, column = 1, sticky = "e")
+      tkgrid(button, row = 8, column = 1, sticky = "e")
       
       button <- ttkbutton(frame, text = "Close", command = plotOptionsDeleteHandler)
-      tkgrid(button, row = 6, column = 2, sticky = "e")
+      tkgrid(button, row = 8, column = 2, sticky = "e")
       
       tkbind(plotOptionsWin , "<Return>" , plotOptionsUpdateHandler)
       tkbind(plotOptionsWin , "<Escape>" , plotOptionsDeleteHandler)
