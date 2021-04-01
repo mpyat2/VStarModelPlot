@@ -3,7 +3,7 @@
 REM === BEGIN OF CONFIGURATION SECTION
 
 REM Set path to your R interpreter
-SET RPATH="C:\Program Files\R\R-3.5.1\bin\x64\"
+SET RPATH="C:\Program Files\R\R-4.0.3\bin\x64\"
 
 REM Set script name
 SET SCRIPT=plot_model2.R

@@ -19,7 +19,7 @@ library("tcltk")
 
 vstarplot <- function()
 {
-  vspVersion        <- "Version 0.06"
+  vspVersion        <- "Version 0.07"
   cat("Starting VStar model plot "); cat(vspVersion); cat("\n")
 
 ## Configuration options ###############################################################################
@@ -120,7 +120,7 @@ vstarplot <- function()
   
   getOpenTextOrCSVFile <- function()
   {
-    result <- tclvalue(tkgetOpenFile(filetypes = "{{Text, CSV files (*.txt, *.csv)} {.txt .csv}} {{All files} {*}}", parent = mainWin))
+    result <- tclvalue(tkgetOpenFile(filetypes = "{{Text, CSV files (*.txt, *.tsv, *.csv)} {.txt .tsv .csv}} {{All files} {*}}", parent = mainWin))
     return(result)
   }
   
@@ -200,7 +200,22 @@ vstarplot <- function()
       if (is.numeric(axisYmin)) plotYlim[1] <- axisYmin
       if (is.numeric(axisYmax)) plotYlim[2] <- axisYmax
       if (dataVstarMarkerFill) plotBg <- dataVstarColor else plotBg <- NA
-      plot(x = dataX, y = dataY, type = "p", col = dataVstarColor, bg = plotBg, pch = 21, xlab = axisXtitle, ylab = axisYtitle, xlim = plotXlim, ylim = plotYlim, main = plotHeader)
+      xrange = plotXlim[2] - plotXlim[1]
+      #Custom X axis if xrange < 5
+      plot(x = dataX, y = dataY, type = "p", col = dataVstarColor, bg = plotBg, 
+        pch = 21, xlab = axisXtitle, ylab = axisYtitle, xlim = plotXlim, ylim = plotYlim, main = plotHeader,
+        xaxt = ifelse(xrange < 5 && xrange > 0, "n", "s"))
+      if (xrange < 5 && xrange > 0) {
+        roundFactor = ifelse(xrange < 1, 100.0, 10.0)
+        plotXlim1round = round(plotXlim[1] * roundFactor) / roundFactor
+        xstep = round(((plotXlim[2] - plotXlim1round) / 5) * roundFactor) /  roundFactor
+        if (xstep > 0) {
+          n_tics = round((plotXlim[2] - plotXlim1round) / xstep) + 1
+          l =  plotXlim1round + xstep * (0:(n_tics-1))
+          axis(1, at = l, labels = sprintf("%.2f", l))
+          #print(xstep); print(n_tics); print(roundFactor); print(plotXlim, digits = 14); print(l, digits = 14)
+        }
+      }
       okFlag <- TRUE
     }, error = function(ex) { showError(paste("Cannot plot data.", ex, sep = "\n")) })
     if (!okFlag) return()
